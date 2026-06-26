@@ -37,7 +37,7 @@ export default [
       }
     },
     rules: {
-      'license-header/header': ['error', resolve(__dirname, 'license.header')],
+      'license-header/header': ['error', resolve(__dirname, 'license-header')],
       'prettier/prettier': 'error',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }]
     }
