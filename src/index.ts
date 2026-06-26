@@ -7,9 +7,9 @@
  */
 
 export {
-  createHubPublicApiClient,
-  type HubPublicApiClient,
-  type CreateHubPublicApiClientOptions,
+  createHubApiClient,
+  type HubApiClient,
+  type CreateHubApiClientOptions,
   type BearerTokenProvider
 } from './client.js';
 

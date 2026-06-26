@@ -16,7 +16,7 @@ import type { paths } from './generated/schema.js';
  * by path and method, e.g. `client.GET('/projects/{projectKey}', ...)`, with
  * request and response types inferred from the OpenAPI spec.
  */
-export type HubPublicApiClient = Client<paths>;
+export type HubApiClient = Client<paths>;
 
 /**
  * A bearer token, or a (possibly async) function returning one. The function
@@ -27,7 +27,7 @@ export type BearerTokenProvider =
   | string
   | (() => string | undefined | Promise<string | undefined>);
 
-export interface CreateHubPublicApiClientOptions extends ClientOptions {
+export interface CreateHubApiClientOptions extends ClientOptions {
   /**
    * Base URL of the API, including the `/api/v2` path segment, e.g.
    * `https://modeler.camunda.io/api/v2`.
@@ -48,9 +48,9 @@ export interface CreateHubPublicApiClientOptions extends ClientOptions {
  *   custom `fetch` or default `headers`) is forwarded.
  * @returns A typed client exposing one method per HTTP verb.
  */
-export function createHubPublicApiClient(
-  options: CreateHubPublicApiClientOptions
-): HubPublicApiClient {
+export function createHubApiClient(
+  options: CreateHubApiClientOptions
+): HubApiClient {
   const { token, ...clientOptions } = options;
   const client = createClient<paths>(clientOptions);
 

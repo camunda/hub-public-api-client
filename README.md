@@ -20,9 +20,9 @@ bearer token, then call endpoints by path and method. Request bodies, query
 parameters, path parameters, and responses are all fully typed from the spec.
 
 ```ts
-import { createHubPublicApiClient } from '@camunda8/hub-api-client';
+import { createHubApiClient } from '@camunda8/hub-api-client';
 
-const client = createHubPublicApiClient({
+const client = createHubApiClient({
   baseUrl: 'https://modeler.camunda.io/api/v2',
   // A static token, or a (possibly async) function returning a fresh one.
   token: async () => fetchAccessToken()
