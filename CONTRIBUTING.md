@@ -8,9 +8,9 @@ the (private) `camunda/camunda-hub` repository at
 this repo and is **not** committed here — it is fetched at build time, and the
 generated client (`src/generated/schema.ts`) is a gitignored build artifact.
 
-- In CI, the [`fetch-spec`](.github/workflows) composite action does a
-  read-only, shallow + sparse checkout of just the spec (via a GitHub App
-  token).
+- In CI, the [`fetch-spec`](.github/actions/fetch-spec/action.yml) composite
+  action does a read-only, shallow + sparse checkout of just the spec (via a
+  read-only deploy key).
 - Locally, `npm run fetch-spec` does the same using your own GitHub credentials.
 
 Both place the spec under `.spec-src/`. `npm run generate` then reads it
@@ -45,7 +45,7 @@ npm run lint
 ## External contributions (fork limitation)
 
 Fork pull requests **cannot** run the spec-dependent CI: GitHub withholds repo
-secrets (the GitHub App key) from fork PRs, so the spec can't be fetched. The
+secrets (the deploy key) from fork PRs, so the spec can't be fetched. The
 `check` workflow is skipped on fork PRs (a `check-skip` job keeps the required
 status green). A maintainer validates external changes by re-running them on a
 branch in this repo, where the spec fetch and full CI run.
