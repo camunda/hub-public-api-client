@@ -10,7 +10,7 @@ generated client (`src/generated/schema.ts`) is a gitignored build artifact.
 
 - In CI, the [`fetch-spec`](.github/actions/fetch-spec/action.yml) composite
   action does a read-only, shallow + sparse checkout of just the spec (via a
-  read-only deploy key).
+  GitHub App token).
 - Locally, `npm run fetch-spec` does the same using your own GitHub credentials.
 
 Both place the spec under `.spec-src/`. `npm run generate` then reads it
@@ -45,21 +45,23 @@ npm run lint
 ## External contributions (fork limitation)
 
 Fork pull requests **cannot** run the spec-dependent CI: GitHub withholds repo
-secrets (the deploy key) from fork PRs, so the spec can't be fetched. The
+secrets (the GitHub App credentials) from fork PRs, so the spec can't be
+fetched. The
 `check` workflow is skipped on fork PRs (a `check-skip` job keeps the required
 status green). A maintainer validates external changes by re-running them on a
 branch in this repo, where the spec fetch and full CI run.
 
 ## CI & access
 
-- The spec is fetched with a **read-only SSH deploy key**: generate a keypair,
-  add the **public** key to `camunda-hub` (Settings → Deploy keys, **without**
-  write access), and store the **private** key as the `HUB_SPEC_DEPLOY_KEY`
-  secret in this repo. A deploy key is scoped to that one repo and is not tied
-  to a user account. Rotate it periodically.
-  - Alternative: a fine-grained **PAT** (Contents: read on `camunda-hub`,
-    ideally on a service account) passed to checkout via `token:` instead of
-    `ssh-key:`. Simpler, but user-bound and expires ≤1 year.
+- The spec is fetched with a **GitHub App** (`hub-public-api-spec-reader`) that
+  has **Contents: read-only**, installed on **`camunda-hub` only**. Store its id
+  and private key as the `HUB_SPEC_READER_APP_ID` / `HUB_SPEC_READER_APP_KEY`
+  secrets in this repo. The `fetch-spec` action mints a short-lived (~1h),
+  single-repo token per run — no long-lived credential, and not tied to a user.
+  - Alternatives if an App isn't available: a read-only SSH **deploy key** on
+    `camunda-hub` (`ssh-key:` on checkout), or a fine-grained **PAT** with
+    Contents:read on `camunda-hub` (`token:` on checkout, ideally a service
+    account). Both are long-lived and need manual rotation.
 - `check.yml` runs on PRs/push/schedule; the scheduled run catches an upstream
   spec change that breaks the client before a release does.
 
