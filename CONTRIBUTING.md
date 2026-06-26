@@ -1,4 +1,4 @@
-# Contributing — `@camunda8/hub-public-api-client`
+# Contributing — `@camunda8/hub-api-client`
 
 ## How the client is generated
 

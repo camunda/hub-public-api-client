@@ -1,6 +1,6 @@
 name: publish
 
-# Publishes @camunda8/hub-public-api-client to npm via OIDC trusted publishing
+# Publishes @camunda8/hub-api-client to npm via OIDC trusted publishing
 # (no long-lived npm token). Requires a matching trusted publisher on npmjs.com:
 # organization `camunda`, repository `hub-public-api-client`, workflow `publish.yml`.
 #

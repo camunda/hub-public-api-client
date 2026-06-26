@@ -1,5 +1,5 @@
 {
-  "name": "@camunda8/hub-public-api-client",
+  "name": "@camunda8/hub-api-client",
   "version": "0.1.0",
   "description": "Typed TypeScript client for the Camunda Hub public API v2, generated from its OpenAPI specification.",
   "author": "Camunda Services GmbH <https://camunda.com>",

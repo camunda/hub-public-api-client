@@ -1,4 +1,4 @@
-# @camunda8/hub-public-api-client
+# @camunda8/hub-api-client
 
 A typed TypeScript client for the **Camunda Hub public API v2**.
 
@@ -10,7 +10,7 @@ response, and model types always match the published spec. Built on
 ## Installation
 
 ```bash
-npm install @camunda8/hub-public-api-client
+npm install @camunda8/hub-api-client
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ bearer token, then call endpoints by path and method. Request bodies, query
 parameters, path parameters, and responses are all fully typed from the spec.
 
 ```ts
-import { createHubPublicApiClient } from '@camunda8/hub-public-api-client';
+import { createHubPublicApiClient } from '@camunda8/hub-api-client';
 
 const client = createHubPublicApiClient({
   baseUrl: 'https://modeler.camunda.io/api/v2',
@@ -58,7 +58,7 @@ via a custom `fetch` or default `headers`, both forwarded to `openapi-fetch`).
 The generated models are exported for reuse in your own code:
 
 ```ts
-import type { Schemas } from '@camunda8/hub-public-api-client';
+import type { Schemas } from '@camunda8/hub-api-client';
 
 type Project = Schemas['ProjectResult'];
 ```
