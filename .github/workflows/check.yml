@@ -4,7 +4,7 @@ name: check
 # produces a valid, lint-clean, compiling client. The scheduled run catches a
 # spec change in camunda-hub that breaks the client before a release does.
 #
-# Fork PRs cannot access the GitHub App secret, so the spec fetch can't run
+# Fork PRs cannot access the deploy-key secret, so the spec fetch can't run
 # there: the real `check` is skipped and `check-skip` reports success so a
 # required check still resolves. A maintainer validates external contributions
 # by re-running them on an in-repo branch (where secrets are available).
