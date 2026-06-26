@@ -52,9 +52,14 @@ branch in this repo, where the spec fetch and full CI run.
 
 ## CI & access
 
-- A GitHub App (`hub-public-api-spec-reader`) with **Contents: read-only**,
-  installed on **`camunda-hub` only**, provides the spec. Its id and private key
-  are stored as the `HUB_SPEC_READER_APP_ID` / `HUB_SPEC_READER_APP_KEY` secrets.
+- The spec is fetched with a **read-only SSH deploy key**: generate a keypair,
+  add the **public** key to `camunda-hub` (Settings → Deploy keys, **without**
+  write access), and store the **private** key as the `HUB_SPEC_DEPLOY_KEY`
+  secret in this repo. A deploy key is scoped to that one repo and is not tied
+  to a user account. Rotate it periodically.
+  - Alternative: a fine-grained **PAT** (Contents: read on `camunda-hub`,
+    ideally on a service account) passed to checkout via `token:` instead of
+    `ssh-key:`. Simpler, but user-bound and expires ≤1 year.
 - `check.yml` runs on PRs/push/schedule; the scheduled run catches an upstream
   spec change that breaks the client before a release does.
 
