@@ -1,0 +1,56 @@
+{
+  "name": "@camunda8/hub-public-api-client",
+  "version": "0.1.0",
+  "description": "Typed TypeScript client for the Camunda Hub public API v2, generated from its OpenAPI specification.",
+  "author": "Camunda Services GmbH <https://camunda.com>",
+  "license": "Camunda-1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/camunda/hub-public-api-client"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "scripts": {
+    "fetch-spec": "git clone --depth 1 --filter=blob:none --sparse https://github.com/camunda/camunda-hub .spec-src && git -C .spec-src sparse-checkout set restapi/public-api/src/main/resources/openapi/v2",
+    "clean": "rimraf dist src/generated",
+    "generate": "node scripts/generate.mjs",
+    "pretsc": "npm run generate",
+    "tsc": "tsc --noEmit",
+    "build": "npm run clean && npm run generate && tsc",
+    "prepack": "npm run build",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.14.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.4",
+    "eslint": "9.39.4",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-license-header": "0.9.0",
+    "eslint-plugin-prettier": "5.5.6",
+    "globals": "17.6.0",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.6.2",
+    "rimraf": "6.1.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.61.1"
+  }
+}

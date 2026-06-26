@@ -1,0 +1,55 @@
+name: check
+
+# Fetches the public API spec from camunda-hub and verifies that it still
+# produces a valid, lint-clean, compiling client. The scheduled run catches a
+# spec change in camunda-hub that breaks the client before a release does.
+#
+# Fork PRs cannot access the GitHub App secret, so the spec fetch can't run
+# there: the real `check` is skipped and `check-skip` reports success so a
+# required check still resolves. A maintainer validates external contributions
+# by re-running them on an in-repo branch (where secrets are available).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Fetch the spec
+        uses: ./.github/actions/fetch-spec
+        with:
+          app-id: ${{ secrets.HUB_SPEC_READER_APP_ID }}
+          private-key: ${{ secrets.HUB_SPEC_READER_APP_KEY }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24.18.0
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate and type-check the client
+        run: npm run tsc
+
+      - name: Lint
+        run: npm run lint
+
+  check-skip:
+    name: check
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+    steps:
+      - run: echo "Skipped on fork PR — the spec fetch needs repo secrets. A maintainer will re-run this on an in-repo branch."

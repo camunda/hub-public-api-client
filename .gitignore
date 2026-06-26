@@ -1,0 +1,9 @@
+node_modules/
+dist/
+
+# Generated from the public API v2 OpenAPI spec at build time (npm run generate).
+# Not committed — shipped only as compiled output in dist/.
+src/generated/
+
+# Sparse checkout of the spec fetched from camunda-hub (npm run fetch-spec / CI).
+.spec-src/
