@@ -32,11 +32,24 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      - name: Generate a camunda-hub read token from Vault
+        id: app-token
+        uses: camunda/infra-global-github-actions/generate-github-app-token-from-vault-secrets@main
+        with:
+          github-app-id-vault-key: GITHUB_APP_ID
+          github-app-id-vault-path: secret/data/products/hub/github.com/apps/camunda/hub-team-automations
+          github-app-private-key-vault-key: GITHUB_PRIVATE_KEY
+          github-app-private-key-vault-path: secret/data/products/hub/github.com/apps/camunda/hub-team-automations
+          vault-auth-method: jwt
+          vault-auth-jwt-path: ${{ secrets.VAULT_JWT_PATH }}
+          vault-auth-jwt-role: ${{ secrets.VAULT_JWT_ROLE }}
+          vault-auth-jwt-audience: ${{ secrets.VAULT_JWT_AUDIENCE }}
+          vault-url: ${{ secrets.VAULT_ADDR }}
+
       - name: Fetch the spec (pinned)
         uses: ./.github/actions/fetch-spec
         with:
-          app-id: ${{ secrets.HUB_SPEC_READER_APP_ID }}
-          private-key: ${{ secrets.HUB_SPEC_READER_APP_KEY }}
+          token: ${{ steps.app-token.outputs.token }}
           ref: ${{ inputs.spec_ref || 'main' }}
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0

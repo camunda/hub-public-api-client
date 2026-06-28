@@ -4,10 +4,10 @@ name: check
 # produces a valid, lint-clean, compiling client. The scheduled run catches a
 # spec change in camunda-hub that breaks the client before a release does.
 #
-# Fork PRs cannot access the GitHub App secrets, so the spec fetch can't run
-# there: the real `check` is skipped and `check-skip` reports success so a
-# required check still resolves. A maintainer validates external contributions
-# by re-running them on an in-repo branch (where secrets are available).
+# Fork PRs cannot mint the Vault/OIDC token, so the spec fetch can't run there:
+# the real `check` is skipped and `check-skip` reports success so a required
+# check still resolves. A maintainer validates external contributions by
+# re-running them on an in-repo branch (where OIDC + Vault access are available).
 
 on:
   pull_request:
@@ -24,15 +24,31 @@ jobs:
   check:
     name: check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # mint the GitHub OIDC token for Vault JWT auth
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
+      - name: Generate a camunda-hub read token from Vault
+        id: app-token
+        uses: camunda/infra-global-github-actions/generate-github-app-token-from-vault-secrets@main
+        with:
+          github-app-id-vault-key: GITHUB_APP_ID
+          github-app-id-vault-path: secret/data/products/hub/github.com/apps/camunda/hub-team-automations
+          github-app-private-key-vault-key: GITHUB_PRIVATE_KEY
+          github-app-private-key-vault-path: secret/data/products/hub/github.com/apps/camunda/hub-team-automations
+          vault-auth-method: jwt
+          vault-auth-jwt-path: ${{ secrets.VAULT_JWT_PATH }}
+          vault-auth-jwt-role: ${{ secrets.VAULT_JWT_ROLE }}
+          vault-auth-jwt-audience: ${{ secrets.VAULT_JWT_AUDIENCE }}
+          vault-url: ${{ secrets.VAULT_ADDR }}
+
       - name: Fetch the spec
         uses: ./.github/actions/fetch-spec
         with:
-          app-id: ${{ secrets.HUB_SPEC_READER_APP_ID }}
-          private-key: ${{ secrets.HUB_SPEC_READER_APP_KEY }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:

@@ -8,9 +8,9 @@ the (private) `camunda/camunda-hub` repository at
 this repo and is **not** committed here — it is fetched at build time, and the
 generated client (`src/generated/schema.ts`) is a gitignored build artifact.
 
-- In CI, the [`fetch-spec`](.github/actions/fetch-spec/action.yml) composite
-  action does a read-only, shallow + sparse checkout of just the spec (via a
-  GitHub App token).
+- In CI, a GitHub App token is minted from Vault (see _CI & access_ below) and
+  the [`fetch-spec`](.github/actions/fetch-spec/action.yml) composite action does
+  a read-only, shallow + sparse checkout of just the spec with it.
 - Locally, `npm run fetch-spec` does the same using your own GitHub credentials.
 
 Both place the spec under `.spec-src/`. `npm run generate` then reads it
@@ -44,24 +44,27 @@ npm run lint
 
 ## External contributions (fork limitation)
 
-Fork pull requests **cannot** run the spec-dependent CI: GitHub withholds repo
-secrets (the GitHub App credentials) from fork PRs, so the spec can't be
-fetched. The
-`check` workflow is skipped on fork PRs (a `check-skip` job keeps the required
-status green). A maintainer validates external changes by re-running them on a
-branch in this repo, where the spec fetch and full CI run.
+Fork pull requests **cannot** run the spec-dependent CI: GitHub does not grant
+the OIDC token / Vault access to fork PRs, so the App token can't be minted and
+the spec can't be fetched. The `check` workflow is skipped on fork PRs (a
+`check-skip` job keeps the required status green). A maintainer validates
+external changes by re-running them on a branch in this repo, where OIDC + Vault
+access are available.
 
 ## CI & access
 
-- The spec is fetched with a **GitHub App** (`hub-public-api-spec-reader`) that
-  has **Contents: read-only**, installed on **`camunda-hub` only**. Store its id
-  and private key as the `HUB_SPEC_READER_APP_ID` / `HUB_SPEC_READER_APP_KEY`
-  secrets in this repo. The `fetch-spec` action mints a short-lived (~1h),
-  single-repo token per run — no long-lived credential, and not tied to a user.
-  - Alternatives if an App isn't available: a read-only SSH **deploy key** on
-    `camunda-hub` (`ssh-key:` on checkout), or a fine-grained **PAT** with
-    Contents:read on `camunda-hub` (`token:` on checkout, ideally a service
-    account). Both are long-lived and need manual rotation.
+- The spec is read using the **`hub-team-automations`** GitHub App (Contents:
+  read-only, installed on **`camunda-hub` only**). Its credentials live in
+  **Vault**, not GitHub secrets, at
+  `secret/data/products/hub/github.com/apps/camunda/hub-team-automations`
+  (keys `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY`).
+- Each run mints a short-lived App token with
+  [`camunda/infra-global-github-actions/generate-github-app-token-from-vault-secrets`](https://github.com/camunda/infra-global-github-actions/tree/main/generate-github-app-token-from-vault-secrets),
+  which authenticates to Vault via GitHub **OIDC (JWT)** — so the job needs
+  `permissions: id-token: write` and no long-lived credential is stored anywhere.
+- This requires the repo to be **onboarded to Vault**, which provides the
+  `VAULT_ADDR` / `VAULT_JWT_PATH` / `VAULT_JWT_ROLE` / `VAULT_JWT_AUDIENCE`
+  secrets the action consumes.
 - `check.yml` runs on PRs/push/schedule; the scheduled run catches an upstream
   spec change that breaks the client before a release does.
 
