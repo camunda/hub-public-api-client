@@ -150,14 +150,20 @@ jobs:
         id: current
         run: echo "sha=$(git -C .spec-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Install oasdiff (pinned)
+      - name: Install oasdiff (pinned + checksum-verified)
         env:
           OASDIFF_VERSION: 1.21.0
         run: |
           set -euo pipefail
-          curl -fsSL "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz" -o /tmp/oasdiff.tar.gz
-          tar -xzf /tmp/oasdiff.tar.gz -C /tmp oasdiff
-          sudo install -m 0755 /tmp/oasdiff /usr/local/bin/oasdiff
+          base="https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}"
+          tarball="oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          tmp="$(mktemp -d)"
+          curl -fsSL "${base}/${tarball}" -o "${tmp}/${tarball}"
+          curl -fsSL "${base}/checksums.txt" -o "${tmp}/checksums.txt"
+          # Verify the tarball against the release checksums before trusting it.
+          ( cd "${tmp}" && grep "${tarball}" checksums.txt | sha256sum -c - )
+          tar -xzf "${tmp}/${tarball}" -C "${tmp}" oasdiff
+          sudo install -m 0755 "${tmp}/oasdiff" /usr/local/bin/oasdiff
           oasdiff --version
 
       - name: Decide release
@@ -198,12 +204,16 @@ jobs:
           set -euo pipefail
           npm version minor --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
-          npm publish
           echo "${{ steps.current.outputs.sha }}" > .published-spec-ref
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): v${VERSION} (non-breaking spec changes)"
           git tag "v${VERSION}"
+          # Fail BEFORE publishing if we won't be able to record the release (e.g. branch protection
+          # rejects the push). Otherwise npm would have the version but .published-spec-ref would not
+          # advance, and the next run would try to republish and fail on the duplicate.
+          git push --dry-run origin HEAD:main --follow-tags
+          npm publish
           git push origin HEAD:main --follow-tags
 
       # --- Breaking: open/update a PR (major bump) for human review; do NOT publish ---
