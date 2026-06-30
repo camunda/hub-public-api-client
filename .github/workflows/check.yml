@@ -44,6 +44,11 @@ jobs:
           vault-auth-jwt-role: ${{ secrets.VAULT_JWT_ROLE }}
           vault-auth-jwt-audience: ${{ secrets.VAULT_JWT_AUDIENCE }}
           vault-url: ${{ secrets.VAULT_ADDR }}
+          # Scope the token to camunda-hub (the repo we read the spec from). Without this,
+          # create-github-app-token defaults to the current repo (hub-public-api-client), so the
+          # camunda-hub checkout in the next step fails to authenticate (git exit 128).
+          owner: camunda
+          repositories: camunda-hub
 
       - name: Fetch the spec
         uses: ./.github/actions/fetch-spec
