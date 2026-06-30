@@ -96,3 +96,23 @@ package).
 
 Bump `version`, commit, and cut a GitHub Release (the first CI release must be
 `> 0.1.0`). The workflow publishes over OIDC with provenance — no tokens.
+
+### Automated releases (scheduled)
+
+The `auto-release` job in `publish.yml` runs daily and reacts to upstream spec changes so most
+releases need no manual step. It diffs the current camunda-hub spec against the spec the last
+published version was built from — recorded in [`.published-spec-ref`](.published-spec-ref) — using
+[`oasdiff`](https://github.com/oasdiff/oasdiff):
+
+- **no significant change** → nothing happens;
+- **non-breaking change(s)** → it bumps a **minor**, publishes, and records the new spec ref;
+- **breaking change(s)** → it opens/updates a **PR** (major bump) for human review instead of
+  publishing. Merge it and cut a Release to publish the major (breaking changes stay human-gated).
+
+It's **inert until you set the repo variable `AUTO_PUBLISH_ENABLED=true`** (Settings → Secrets and
+variables → Actions → Variables). Prerequisites before enabling: the npm trusted publisher above must
+be configured, and branch protection on `main` must allow the workflow's `GITHUB_TOKEN` to push the
+release commit (or the minor publish will succeed on npm but fail to record the new ref). To dry-run
+the decision without acting, dispatch the workflow manually with `job=auto-release`, `dry_run=true`.
+`oasdiff` detects *structural* breaking changes (the ones that break a generated client), not
+semantic ones — so "non-breaking" means structurally safe, not a guarantee.

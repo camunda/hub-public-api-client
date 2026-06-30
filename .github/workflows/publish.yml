@@ -1,24 +1,44 @@
 name: publish
 
-# Publishes @camunda8/hub-api-client to npm via OIDC trusted publishing
-# (no long-lived npm token). Requires a matching trusted publisher on npmjs.com:
-# organization `camunda`, repository `hub-public-api-client`, workflow `publish.yml`.
+# Publishes @camunda8/hub-api-client to npm via OIDC trusted publishing (no npm token; trusted
+# publisher = org `camunda`, repo `hub-public-api-client`, workflow `publish.yml`). The spec is
+# fetched from camunda-hub and `npm publish` packs the package (`prepack` -> build -> generate from
+# the fetched spec), so the tarball is built from that exact spec. Provenance is emitted
+# automatically (public repo + package).
 #
-# The spec is fetched from camunda-hub at a pinned ref, then `npm publish` packs
-# the package — `prepack` -> build (generate from the fetched spec -> tsc) — so
-# the tarball is built from that exact spec commit. Provenance is emitted
-# automatically (public repo + package); `access`/`provenance` come from
-# publishConfig.
+# Two jobs (npm trusted publishing is bound to THIS workflow file, and a GITHUB_TOKEN push/release
+# can't trigger another workflow, so the scheduled auto-publish must live here and publish inline):
+#
+#   publish       release / manual dispatch -> build at a pinned spec ref and publish the version in
+#                 package.json. Used for manual releases and to publish a major after a breaking PR
+#                 (below) is merged and a Release is cut.
+#   auto-release  scheduled -> diff the current camunda-hub spec against the spec the last published
+#                 version was built from (.published-spec-ref) with oasdiff:
+#                   no change      -> nothing to do
+#                   non-breaking   -> bump a minor, publish, record the new spec ref
+#                   breaking       -> open/update a PR (major bump) for human review; do NOT publish
+#                 Inert until the repo variable AUTO_PUBLISH_ENABLED is set to 'true'.
 
 on:
   release:
     types: [published]
+  schedule:
+    - cron: '0 5 * * *' # daily; auto-release only acts when the spec actually changed
   workflow_dispatch:
     inputs:
+      job:
+        description: Which job to run.
+        type: choice
+        options: [auto-release, publish]
+        default: auto-release
       spec_ref:
-        description: camunda-hub ref (tag/sha) to build the spec from.
+        description: '[publish] camunda-hub ref (tag/sha) to build the spec from.'
         required: false
         default: main
+      dry_run:
+        description: '[auto-release] decide only; do not publish or open a PR.'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -27,6 +47,7 @@ permissions:
 jobs:
   publish:
     name: publish
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.job == 'publish')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -70,3 +91,143 @@ jobs:
 
       - name: Publish to npm
         run: npm publish
+
+  auto-release:
+    name: auto-release
+    # Inert until explicitly switched on: set repo variable AUTO_PUBLISH_ENABLED=true once the npm
+    # trusted publisher is configured and you're ready for hands-off minor publishing.
+    if: >-
+      vars.AUTO_PUBLISH_ENABLED == 'true' &&
+      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.job == 'auto-release'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # bump version + update .published-spec-ref on main; push the breaking-change branch
+      pull-requests: write # open the breaking-change PR
+      id-token: write # Vault JWT (read camunda-hub) + npm OIDC (publish)
+    env:
+      # dry_run only applies to manual dispatch; scheduled runs always act.
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Generate a camunda-hub read token from Vault
+        id: app-token
+        uses: camunda/infra-global-github-actions/generate-github-app-token-from-vault-secrets@main
+        with:
+          github-app-id-vault-key: GITHUB_APP_ID
+          github-app-id-vault-path: secret/data/products/hub/github.com/apps/camunda/hub-team-automations
+          github-app-private-key-vault-key: GITHUB_PRIVATE_KEY
+          github-app-private-key-vault-path: secret/data/products/hub/github.com/apps/camunda/hub-team-automations
+          vault-auth-method: jwt
+          vault-auth-jwt-path: ${{ secrets.VAULT_JWT_PATH }}
+          vault-auth-jwt-role: ${{ secrets.VAULT_JWT_ROLE }}
+          vault-auth-jwt-audience: ${{ secrets.VAULT_JWT_AUDIENCE }}
+          vault-url: ${{ secrets.VAULT_ADDR }}
+          owner: camunda
+          repositories: camunda-hub
+
+      - name: Read the baseline spec ref
+        id: baseline
+        run: echo "ref=$(cat .published-spec-ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the baseline spec
+        uses: ./.github/actions/fetch-spec
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: ${{ steps.baseline.outputs.ref }}
+          path: .spec-baseline
+
+      - name: Fetch the current spec
+        uses: ./.github/actions/fetch-spec
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          ref: main
+          path: .spec-src # default build path, so npm publish -> prepack -> generate uses it
+
+      - name: Record current spec sha
+        id: current
+        run: echo "sha=$(git -C .spec-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Install oasdiff
+        run: curl -fsSL https://raw.githubusercontent.com/oasdiff/oasdiff/main/install.sh | sh
+
+      - name: Decide release
+        id: decide
+        env:
+          BASELINE_SPEC: .spec-baseline/restapi/public-api/src/main/resources/openapi/v2/rest-api.yaml
+          CURRENT_SPEC: .spec-src/restapi/public-api/src/main/resources/openapi/v2/rest-api.yaml
+        run: node scripts/decide-release.mjs
+
+      - name: Summary
+        run: |
+          {
+            echo "**Decision:** \`${{ steps.decide.outputs.decision }}\` (dry-run: \`${DRY_RUN}\`, baseline: \`${{ steps.baseline.outputs.ref }}\`, current: \`${{ steps.current.outputs.sha }}\`)"
+            echo
+            echo '```'
+            cat oasdiff-changelog.md
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        if: steps.decide.outputs.decision != 'none' && env.DRY_RUN != 'true'
+        with:
+          node-version: 24.18.0
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - run: npm install -g npm@11.16.0
+        if: steps.decide.outputs.decision != 'none' && env.DRY_RUN != 'true'
+
+      - run: npm ci
+        if: steps.decide.outputs.decision != 'none' && env.DRY_RUN != 'true'
+
+      # --- Non-breaking: bump a minor, publish, then record the new baseline ref ---
+      # Publish first: if it fails, nothing is recorded and the next run retries cleanly.
+      - name: Publish minor (non-breaking)
+        if: steps.decide.outputs.decision == 'minor' && env.DRY_RUN != 'true'
+        run: |
+          set -euo pipefail
+          npm version minor --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          npm publish
+          echo "${{ steps.current.outputs.sha }}" > .published-spec-ref
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): v${VERSION} (non-breaking spec changes)"
+          git tag "v${VERSION}"
+          git push origin HEAD:main --follow-tags
+
+      # --- Breaking: open/update a PR (major bump) for human review; do NOT publish ---
+      # A fixed branch keeps it to a single, force-updated PR rather than one per run.
+      - name: Open breaking-change PR
+        if: steps.decide.outputs.decision == 'breaking' && env.DRY_RUN != 'true'
+        run: |
+          set -euo pipefail
+          npm version major --no-git-tag-version
+          VERSION=$(node -p "require('./package.json').version")
+          echo "${{ steps.current.outputs.sha }}" > .published-spec-ref
+          BRANCH="auto/breaking-spec-change"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -am "chore(release)!: v${VERSION} (BREAKING spec changes)"
+          git push --force origin "$BRANCH"
+          {
+            echo "The camunda-hub public API spec changed in a **breaking** way since the last publish (baseline \`${{ steps.baseline.outputs.ref }}\` → \`${{ steps.current.outputs.sha }}\`)."
+            echo
+            echo "Review the changes below. **Merging this PR and cutting a GitHub Release** publishes \`v${VERSION}\` (a major). Auto-publish handles non-breaking changes itself; breaking ones route here on purpose."
+            echo
+            echo "## oasdiff changelog"
+            echo
+            echo '```'
+            cat oasdiff-changelog.md
+            echo '```'
+          } > pr-body.md
+          if [ "$(gh pr list --head "$BRANCH" --state open --json number --jq 'length')" = "0" ]; then
+            gh pr create --base main --head "$BRANCH" --title "chore(release)!: v${VERSION} — breaking API changes" --body-file pr-body.md
+          else
+            gh pr edit "$BRANCH" --title "chore(release)!: v${VERSION} — breaking API changes" --body-file pr-body.md
+            echo "Updated the existing breaking-change PR."
+          fi

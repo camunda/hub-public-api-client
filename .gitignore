@@ -7,3 +7,7 @@ src/generated/
 
 # Sparse checkout of the spec fetched from camunda-hub (npm run fetch-spec / CI).
 .spec-src/
+# Baseline spec + oasdiff outputs used by the scheduled auto-release job (CI only).
+.spec-baseline/
+oasdiff-changelog.md
+pr-body.md
