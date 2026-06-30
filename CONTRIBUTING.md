@@ -100,14 +100,20 @@ Bump `version`, commit, and cut a GitHub Release (the first CI release must be
 ### Automated releases (scheduled)
 
 The `auto-release` job in `publish.yml` runs daily and reacts to upstream spec changes so most
-releases need no manual step. It diffs the current camunda-hub spec against the spec the last
-published version was built from — recorded in [`.published-spec-ref`](.published-spec-ref) — using
+releases need no manual step. It diffs the current camunda-hub spec against the **baseline spec ref**
+— recorded in [`.published-spec-ref`](.published-spec-ref) — using
 [`oasdiff`](https://github.com/oasdiff/oasdiff):
 
 - **no significant change** → nothing happens;
-- **non-breaking change(s)** → it bumps a **minor**, publishes, and records the new spec ref;
+- **non-breaking change(s)** → it bumps a **minor**, publishes, and advances the baseline ref;
 - **breaking change(s)** → it opens/updates a **PR** (major bump) for human review instead of
   publishing. Merge it and cut a Release to publish the major (breaking changes stay human-gated).
+
+> The breaking-change PR advances `.published-spec-ref` to the new spec as part of the PR, so merging
+> it moves the baseline forward and the change isn't re-flagged on every subsequent run. The major
+> itself publishes only when you cut the Release — so in the window between merging the PR and cutting
+> the Release, the ref is intentionally ahead of the version actually on npm. For the non-breaking
+> path the ref only advances together with the publish, so there it does track the last published spec.
 
 It's **inert until you set the repo variable `AUTO_PUBLISH_ENABLED=true`** (Settings → Secrets and
 variables → Actions → Variables). Prerequisites before enabling: the npm trusted publisher above must

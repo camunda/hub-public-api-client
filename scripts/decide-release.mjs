@@ -81,9 +81,21 @@ let decision;
 if (changes.length === 0) {
   decision = 'none';
 } else {
-  // 2. Any breaking (ERR-level) change? `--fail-on ERR` makes oasdiff exit non-zero if so.
+  // 2. Any breaking (ERR-level) change? With `--fail-on ERR`, oasdiff uses exit code 1 *only* for
+  // "breaking changes found". Every operational failure has its own code (>=100: 101 invalid flags,
+  // 102/103 spec load failure, 104 diff failed, ...), so we must not treat those as breaking — that
+  // would open a bogus major-bump PR when the diff actually errored.
   const breaking = oasdiff(['breaking', base, rev, '--fail-on', 'ERR']);
-  decision = breaking.code === 0 ? 'minor' : 'breaking';
+  if (breaking.code === 0) {
+    decision = 'minor';
+  } else if (breaking.code === 1) {
+    decision = 'breaking';
+  } else {
+    console.error(
+      `oasdiff breaking failed (exit ${breaking.code}):\n${breaking.stderr || breaking.stdout || '(no output)'}`
+    );
+    process.exit(1);
+  }
 }
 
 // Human-readable changelog for the PR body / logs (best-effort).
