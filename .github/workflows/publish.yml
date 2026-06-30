@@ -50,6 +50,11 @@ jobs:
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.job == 'publish')
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Shared with auto-release so no two publish-capable runs ever overlap (e.g. a release published
+    # while a scheduled auto-release is mid-run); queue rather than cancel a run that may be publishing.
+    concurrency:
+      group: publish-hub-api-client
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
@@ -101,6 +106,11 @@ jobs:
       (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.job == 'auto-release'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Serialize auto-release runs (schedule overlapping a manual dispatch) and exclude the publish job
+    # above via the shared group; queue rather than cancel so a mid-publish run is never interrupted.
+    concurrency:
+      group: publish-hub-api-client
+      cancel-in-progress: false
     permissions:
       contents: write # bump version + update .published-spec-ref on main; push the breaking-change branch
       pull-requests: write # open the breaking-change PR
@@ -208,7 +218,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): v${VERSION} (non-breaking spec changes)"
-          git tag "v${VERSION}"
+          # Annotated tag: `git push --follow-tags` only pushes annotated tags, not lightweight ones.
+          git tag -a "v${VERSION}" -m "v${VERSION}"
           # Fail BEFORE publishing if we won't be able to record the release (e.g. branch protection
           # rejects the push). Otherwise npm would have the version but .published-spec-ref would not
           # advance, and the next run would try to republish and fail on the duplicate.
