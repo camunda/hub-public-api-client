@@ -70,8 +70,15 @@ try {
   process.exit(1);
 }
 
+// Fail fast on an unexpected shape rather than silently treating it as "no change" (which would
+// skip a needed release if oasdiff ever changes its json output or emits an object on error).
+if (!Array.isArray(changes)) {
+  console.error(`Unexpected oasdiff changelog output (expected a JSON array):\n${changelog.stdout.slice(0, 1000)}`);
+  process.exit(1);
+}
+
 let decision;
-if (!Array.isArray(changes) || changes.length === 0) {
+if (changes.length === 0) {
   decision = 'none';
 } else {
   // 2. Any breaking (ERR-level) change? `--fail-on ERR` makes oasdiff exit non-zero if so.
