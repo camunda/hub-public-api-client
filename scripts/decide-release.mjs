@@ -39,15 +39,16 @@ if (!base || !rev) {
   process.exit(1);
 }
 
-/** Run oasdiff; returns { stdout, code }. Does not throw on non-zero exit. */
+/** Run oasdiff; returns { stdout, stderr, code }. Does not throw on non-zero exit. */
 function oasdiff(args) {
   try {
     const stdout = execFileSync('oasdiff', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-    return { stdout, code: 0 };
+    return { stdout, stderr: '', code: 0 };
   } catch (err) {
-    // execFileSync throws on non-zero exit; surface stdout + the exit code.
+    // execFileSync throws on non-zero exit; surface stdout AND stderr (oasdiff writes diagnostics
+    // to stderr) plus the exit code so failures aren't silent.
     if (typeof err.status === 'number') {
-      return { stdout: err.stdout?.toString() ?? '', code: err.status };
+      return { stdout: err.stdout?.toString() ?? '', stderr: err.stderr?.toString() ?? '', code: err.status };
     }
     throw err; // oasdiff missing / unexpected failure
   }
@@ -56,7 +57,9 @@ function oasdiff(args) {
 // 1. Are there any significant changes at all? (changelog json is [] when there are none)
 const changelog = oasdiff(['changelog', base, rev, '-f', 'json']);
 if (changelog.code !== 0) {
-  console.error(`oasdiff changelog failed (exit ${changelog.code}):\n${changelog.stdout}`);
+  console.error(
+    `oasdiff changelog failed (exit ${changelog.code}):\n${changelog.stderr || changelog.stdout || '(no output)'}`
+  );
   process.exit(1);
 }
 let changes = [];
