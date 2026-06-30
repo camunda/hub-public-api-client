@@ -101,9 +101,13 @@ jobs:
     name: auto-release
     # Inert until explicitly switched on: set repo variable AUTO_PUBLISH_ENABLED=true once the npm
     # trusted publisher is configured and you're ready for hands-off minor publishing.
+    # Scheduled and real manual runs require AUTO_PUBLISH_ENABLED=true, but a manual dry-run is always
+    # allowed so you can preview the decision *before* enabling (it only decides; every publish/PR step
+    # is gated on env.DRY_RUN != 'true').
     if: >-
-      vars.AUTO_PUBLISH_ENABLED == 'true' &&
-      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.job == 'auto-release'))
+      (github.event_name == 'schedule' && vars.AUTO_PUBLISH_ENABLED == 'true') ||
+      (github.event_name == 'workflow_dispatch' && inputs.job == 'auto-release' &&
+        (inputs.dry_run || vars.AUTO_PUBLISH_ENABLED == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Serialize auto-release runs (schedule overlapping a manual dispatch) and exclude the publish job
