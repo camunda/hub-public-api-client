@@ -107,7 +107,7 @@ jobs:
     if: >-
       (github.event_name == 'schedule' && vars.AUTO_PUBLISH_ENABLED == 'true') ||
       (github.event_name == 'workflow_dispatch' && inputs.job == 'auto-release' &&
-        (inputs.dry_run || vars.AUTO_PUBLISH_ENABLED == 'true'))
+        (github.event.inputs.dry_run == 'true' || vars.AUTO_PUBLISH_ENABLED == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Serialize auto-release runs (schedule overlapping a manual dispatch) and exclude the publish job
@@ -120,8 +120,10 @@ jobs:
       pull-requests: write # open the breaking-change PR
       id-token: write # Vault JWT (read camunda-hub) + npm OIDC (publish)
     env:
-      # dry_run only applies to manual dispatch; scheduled runs always act.
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      # dry_run only applies to manual dispatch; scheduled runs always act. Compare the (string)
+      # input to 'true' explicitly — a bare `inputs.dry_run` is truthy even when it's the string
+      # 'false'. On schedule, github.event.inputs is null, so this is 'false' (act).
+      DRY_RUN: ${{ github.event.inputs.dry_run == 'true' }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
