@@ -222,14 +222,27 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -am "chore(release): v${VERSION} (non-breaking spec changes)"
-          # Annotated tag: `git push --follow-tags` only pushes annotated tags, not lightweight ones.
-          git tag -a "v${VERSION}" -m "v${VERSION}"
-          # Fail BEFORE publishing if we won't be able to record the release (e.g. branch protection
-          # rejects the push). Otherwise npm would have the version but .published-spec-ref would not
-          # advance, and the next run would try to republish and fail on the duplicate.
-          git push --dry-run origin HEAD:main --follow-tags
+          # Fail BEFORE publishing if we won't be able to record the release at all (e.g. branch
+          # protection rejects the push). Otherwise npm would have the version but .published-spec-ref
+          # would not advance, and the next run would try to republish and fail on the duplicate.
+          git push --dry-run origin HEAD:main
           npm publish
-          git push origin HEAD:main --follow-tags
+          # main can still advance between the dry-run and here (e.g. a human merge), which would
+          # reject a plain push and strand the bump + .published-spec-ref, making the next run
+          # republish. Rebase-and-retry so the record always lands; tag only once the commit is on main
+          # (rebasing would otherwise leave an annotated tag pointing at the pre-rebase commit).
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              git tag -a "v${VERSION}" -m "v${VERSION}"
+              git push origin "v${VERSION}"
+              exit 0
+            fi
+            echo "push to main rejected (attempt ${attempt}); rebasing on origin/main and retrying"
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "::error::Published v${VERSION} to npm but could not record it on main after retries; push .published-spec-ref manually." >&2
+          exit 1
 
       # --- Breaking: open/update a PR (major bump) for human review; do NOT publish ---
       # A fixed branch keeps it to a single, force-updated PR rather than one per run.
@@ -243,9 +256,14 @@ jobs:
           BRANCH="auto/breaking-spec-change"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Bring the remote-tracking ref into view (no-op on the first run) so --force-with-lease has
+          # something to compare against; without it the lease can't verify and rejects the push.
+          git fetch origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" || true
           git checkout -b "$BRANCH"
           git commit -am "chore(release)!: v${VERSION} (BREAKING spec changes)"
-          git push --force origin "$BRANCH"
+          # --force-with-lease (not --force): still rolls the single automation branch forward, but
+          # refuses to clobber a remote change we haven't seen (e.g. someone pushed while investigating).
+          git push --force-with-lease origin "HEAD:${BRANCH}"
           {
             echo "The camunda-hub public API spec changed in a **breaking** way since the last publish (baseline \`${{ steps.baseline.outputs.ref }}\` → \`${{ steps.current.outputs.sha }}\`)."
             echo
