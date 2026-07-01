@@ -127,6 +127,11 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # Full history: the minor path rebases onto origin/main to retry the record push, which
+          # needs a merge base. The default shallow clone (fetch-depth: 1) can leave rebase unable to
+          # find one and strand the bump + .published-spec-ref after npm publish has already run.
+          fetch-depth: 0
 
       - name: Generate a camunda-hub read token from Vault
         id: app-token
